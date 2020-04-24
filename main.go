@@ -23,8 +23,36 @@ func main() {
 					Usage: "监听的地址和端口号",
 					Value: ":10200",
 				},
+				&cli.StringFlag{
+					Name:  "name",
+					Usage: "配置名称",
+					Value: "",
+				},
+				&cli.StringFlag{
+					Name:  "converter",
+					Usage: "转换模式",
+					Value: "vmess",
+				},
+				&cli.StringFlag{
+					Name:  "url",
+					Usage: "配置文件地址",
+					Value: "",
+				},
+				&cli.IntFlag{
+					Name:  "interval",
+					Usage: "自动更新频率,单位分钟",
+					Value: 60,
+				},
 			},
 			Action: func(c *cli.Context) error {
+				if name := c.String("name"); name != "" {
+					if urlStr := c.String("url"); urlStr != "" {
+						err := server.AddVmess(name, c.String("converter"), urlStr, c.Int("interval"))
+						if err != nil {
+							log.Printf("添加配置失败 -> %s  %s\n", name, urlStr)
+						}
+					}
+				}
 				return server.Run(context.Background(), c.String("addr"))
 			},
 		},
