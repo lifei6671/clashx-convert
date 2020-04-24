@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>ClashX 托管接口</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui@2.13.1/lib/theme-chalk/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@10.0.0/build/styles/default.min.css">
+    <style type="text/css">
+        .clearfix:after, .clearfix:before {
+            display: table;
+            content: ""
+        }
+
+        .clearfix:after {
+            clear: both
+        }
+
+        .box-card {
+            margin-top: 20px
+        }
+
+        .buttons {
+            margin-top: 10px
+        }
+
+        .checkgroup {
+            margin-top: 8px
+        }
+
+    </style>
+</head>
+<body>
+<div data-v-42127c5e="" id="dm-extension-sniffer"><!----></div>
+<p hidden="">If you are interested, you can join my Discord server: https://discord.gg/S8gz6HT</p>
+<p hidden="">Keep this secret</p>
+<noscript><strong>We're sorry but clashr api doesn't work properly without JavaScript enabled. Please enable it to
+        continue.</strong></noscript>
+<div id="app">
+    <div class="el-row is-justify-center el-row--flex">
+        <div class="el-col el-col-24 el-col-xs-24 el-col-sm-20 el-col-md-16 el-col-lg-12 el-col-xl-10">
+            <div class="el-card box-card is-always-shadow">
+                <div class="el-card__header">
+                    <div class="clearfix"><span>Vmess订阅 转 ClashX配置文件</span></div>
+                </div>
+                <div class="el-card__body">
+                    <div>
+                        <template>
+                            <el-form :inline="true" class="demo-form-inline">
+                                <div style="margin-bottom: 10px;">
+                                    <el-input v-model="subscribe_input" placeholder="请输入Vmess订阅链接"></el-input>
+                                </div>
+
+                                <el-form-item label="HTTP端口号">
+                                    <el-input placeholder="HTTP端口号" v-model="port"></el-input>
+                                </el-form-item>
+
+                                <el-form-item label="Socks端口号">
+                                    <el-input placeholder="Socks端口号" v-model="socks_port"></el-input>
+                                </el-form-item>
+                                <el-form-item>
+                                    <el-checkbox v-model="allow_lan">是否允许局域网</el-checkbox>
+                                </el-form-item>
+                            </el-form>
+                        </template>
+
+                        <div class="buttons el-row is-align-middle el-row--flex">
+                            <div class="el-col el-col-24">
+                                <el-button type="primary" size="medium">一键导入托管</el-button>
+                                <el-button size="medium">复制托管链接</el-button>
+                                <el-button size="medium">下载配置文件</el-button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="el-row is-justify-center el-row--flex">
+        <div class="el-col el-col-24 el-col-xs-24 el-col-sm-20 el-col-md-16 el-col-lg-12 el-col-xl-10">
+            <div class="el-card box-card is-always-shadow">
+                <div class="el-card__header">
+                    <div class="clearfix"><span>Vmess单链接转 ClashX Proxy</span></div>
+                </div>
+                <div class="el-card__body">
+                    <div>
+                        <div class="el-row">
+                            <div class="el-input el-input--large el-input--suffix">
+                                <el-input v-model="single_input" placeholder="请输入Vmess单链接"></el-input>
+                            </div>
+                        </div>
+                        <div class="buttons el-row el-row--flex">
+                            <el-button type="primary" size="medium" @click="singleProxySubmit">一键转化</el-button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <el-card class="box-card">
+                <div slot="header" class="clearfix">
+                    <span>转换结果</span>
+                </div>
+                <div class="text item">
+                    <pre  v-highlightjs="convert_result"><code class="yaml"></code></pre>
+                </div>
+            </el-card>
+        </div>
+    </div>
+</div>
+<script src="https://unpkg.com/vue@2.6.11/dist/vue.js"></script>
+<script src="https://unpkg.com/element-ui@2.13.1/lib/index.js"></script>
+<script src="https://unpkg.com/axios@0.19.2/dist/axios.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@10.0.0/build/highlight.min.js"></script>
+<script>Vue.config.productionTip=false</script>
+<script type="text/javascript">
+    axios.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded';
+    Vue.directive('highlightjs', {
+        deep: true,
+        bind: function bind(el, binding) {
+            // on first bind, highlight all targets
+            var targets = el.querySelectorAll('code');
+            var target;
+            var i;
+
+            for (i = 0; i < targets.length; i += 1) {
+                target = targets[i];
+
+                if (typeof binding.value === 'string') {
+                    // if a value is directly assigned to the directive, use this
+                    // instead of the element content.
+                    target.textContent = binding.value;
+                }
+
+                hljs.highlightBlock(target);
+            }
+        },
+        componentUpdated: function componentUpdated(el, binding) {
+            // after an update, re-fill the content and then highlight
+            var targets = el.querySelectorAll('code');
+            var target;
+            var i;
+
+            for (i = 0; i < targets.length; i += 1) {
+                target = targets[i];
+                if (typeof binding.value === 'string') {
+                    target.textContent = binding.value;
+                }
+                hljs.highlightBlock(target);
+            }
+        }
+    });
+
+    new Vue({
+        el: '#app',
+        data: function () {
+            return {
+                visible: false,
+                port: 7890,
+                socks_port: 7891,
+                allow_lan: false,
+                single_input: "",
+                subscribe_input:"",
+                convert_result:"",
+            }
+        },
+        methods: {
+            singleProxySubmit: function () {
+                if(this.single_input === "") {
+                    this.$message.error('请输入Vmess单链接的地址');
+                }
+                let then = this;
+
+                axios({
+                    method:"post",
+                    url:"/single-proxy",
+                    data: "single_proxy=" + this.single_input
+                }).then(function (t) {
+                    if(t.status === 200) {
+                        then.convert_result = t.data;
+                    } else {
+                        then.$message.error(t.data);
+                    }
+                }).catch(function (error) {
+                    if (error.response) {
+                        then.$message.error(error.response.data);
+                    }else if (error.request) {
+                        then.$message.error(error.request);
+                    } else {
+                        // 其他错误
+                        console.log('Error', error.message);
+                    }
+                    console.log(error);
+                });
+            }
+        }
+    })
+</script>
+</body>
+</html>

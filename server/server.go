@@ -7,6 +7,7 @@ import (
 	"github.com/lifei6671/clashx-convert/clashx"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -26,11 +27,18 @@ type httpCache struct {
 func Run(ctx context.Context, addr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		_, _ = fmt.Fprint(w, "hello world!")
+		b, _ := ioutil.ReadFile("./server/index.html")
+
+		_, _ = fmt.Fprint(w, string(b))
 	})
 	mux.HandleFunc("/config", config)
+	mux.HandleFunc("/single-proxy", singleProxy)
+	host, port, _ := net.SplitHostPort(addr)
+	if host == "" {
+		host = "127.0.0.1"
+	}
 
-	log.Println("Starting  http server ->", addr)
+	log.Printf("Starting  http server -> http://%s:%s\n", host, port)
 	return http.ListenAndServe(addr, mux)
 }
 
@@ -78,6 +86,28 @@ func config(w http.ResponseWriter, r *http.Request) {
 
 	_, _ = fmt.Fprint(w, clashx.ConfigStr)
 
+}
+
+func singleProxy(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		w.WriteHeader(500)
+		_, _ = fmt.Fprint(w, err)
+		return
+	}
+	singleProxyBody := r.FormValue("single_proxy")
+	if singleProxyBody == "" {
+		w.WriteHeader(400)
+		_, _ = fmt.Fprint(w, "链接地址不能为空")
+		return
+	}
+	config, err := clashx.SingleVmessConvert(singleProxyBody)
+	if err != nil {
+		w.WriteHeader(500)
+		_, _ = fmt.Fprint(w, err)
+		return
+	}
+	_, _ = fmt.Fprint(w, config)
+	return
 }
 
 //AddVmess 增加一个配置转换.

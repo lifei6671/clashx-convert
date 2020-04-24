@@ -51,10 +51,6 @@ func (m *Config) String() string {
 	if m == nil {
 		return ""
 	}
-	//w := bytes.NewBufferString("")
-	//encoder := yaml.NewEncoder(w)
-	//
-	//err := encoder.Encode(m)
 
 	b, err := yaml.Marshal(m)
 	if err != nil {
@@ -82,6 +78,16 @@ type Proxy struct {
 	Plugin         string            `yaml:"plugin"`
 	PluginOpts     map[string]string `yaml:"plugin-opts"`
 	Network        string            `yaml:"network"`
+}
+
+func (m *Proxy) String() string {
+	b, err := yaml.Marshal(m)
+	if err != nil {
+		log.Println(err)
+		return ""
+	}
+
+	return string(b)
 }
 
 type ProxyGroup struct {
@@ -141,7 +147,9 @@ func (m *VmessClashX) Convert(body string) (*Config, error) {
 				proxy.Port = int(port)
 			}
 			proxy.UUID = data.Id
-			proxy.AlterId = data.Aid
+			if aid, err := data.Aid.Int64(); err == nil {
+				proxy.AlterId = int(aid)
+			}
 			proxy.Cipher = data.Type
 			proxy.TLS = data.TLS == "tls"
 			if data.Net == "ws" {
@@ -158,6 +166,38 @@ func (m *VmessClashX) Convert(body string) (*Config, error) {
 	}
 
 	return m.c, nil
+}
+
+func SingleVmessConvert(body string) (*Proxy, error) {
+	bbb, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(body, string(VmessPrefix)))
+	if err != nil {
+		return nil, err
+	}
+	data := V2rayConfig{}
+	log.Println(string(bbb))
+	if err := json.Unmarshal(bbb, &data); err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	proxy := &Proxy{}
+	proxy.Name = data.Ps
+	proxy.Server = data.Add
+	if port, err := data.Port.Int64(); err == nil {
+		proxy.Port = int(port)
+	}
+	proxy.UUID = data.Id
+
+	if aid, err := data.Aid.Int64(); err == nil {
+		proxy.AlterId = int(aid)
+	}
+	proxy.Cipher = data.Type
+	proxy.TLS = data.TLS == "tls"
+	if data.Net == "ws" {
+		proxy.Network = data.Net
+		proxy.WSPath = data.Path
+		proxy.WSHeaders = map[string]string{"Host": data.Host}
+	}
+	return proxy, nil
 }
 
 func Register(name string, c Converter) {

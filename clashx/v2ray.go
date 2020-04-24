@@ -11,7 +11,7 @@ type V2rayConfig struct {
 	Port json.Number `json:"port"`
 	Ps   string      `json:"ps"`
 	TLS  string      `json:"tls"`
-	V    int         `json:"v"`
-	Aid  int         `json:"aid"`
+	V    json.Number `json:"v"`
+	Aid  json.Number `json:"aid"`
 	Type string      `json:"type"`
 }
