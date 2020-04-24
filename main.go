@@ -35,5 +35,4 @@ func main() {
 }
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	server.AddVmess("mosucloud", "vmess", "https://cloud.sdl.best/cloud/mosucloud.php?sid=3269&token=ncfqosvw", 1)
 }
