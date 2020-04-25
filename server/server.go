@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/md5"
+	"crypto/tls"
 	"encoding/gob"
 	"encoding/hex"
 	"encoding/json"
@@ -15,9 +16,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 var cache = &sync.Map{}
@@ -25,6 +29,7 @@ var changeChan = make(chan struct{}, 1)
 
 type httpCache struct {
 	Name         string `yaml:"name" json:"name"`
+	ConfigName   string `yaml:"config_name" json:"config_name"`
 	VmessPathUrl string `yaml:"vmess-path-url" json:"vmess_path_url"`
 	Interval     int    `yaml:"interval" json:"interval"`
 	Converter    string `yaml:"converter" json:"converter"`
@@ -35,9 +40,7 @@ type httpCache struct {
 func Run(ctx context.Context, addr string, path string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		b, _ := ioutil.ReadFile("./server/index.html")
-
-		_, _ = fmt.Fprint(w, string(b))
+		_, _ = fmt.Fprint(w, templateStr)
 	})
 	mux.HandleFunc("/config", config)
 	mux.HandleFunc("/single-proxy", singleProxy)
@@ -90,7 +93,7 @@ func config(w http.ResponseWriter, r *http.Request) {
 				c.config = config
 			}
 			w.Header().Add("Content-Type", "application/octet-stream")
-			w.Header().Add("Content-Disposition", "attachment; filename=\""+name+".yaml\"")
+			w.Header().Add("Content-Disposition", "attachment; filename=\""+c.ConfigName+".yaml\"")
 			_, _ = fmt.Fprint(w, c.config.String())
 			return
 		}
@@ -110,6 +113,8 @@ func config(w http.ResponseWriter, r *http.Request) {
 			_, _ = fmt.Fprint(w, err)
 			return
 		}
+		name, _ := getVmessName(urlStr)
+
 		w.Header().Add("Content-Type", "application/octet-stream")
 		w.Header().Add("Content-Disposition", "attachment; filename=\""+name+".yaml\"")
 
@@ -140,8 +145,8 @@ func singleProxy(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprint(w, err)
 		return
 	}
-	w.Header().Add("Content-Type", "application/octet-stream")
 	w.Header().Add("Content-Disposition", "attachment; filename=\"config.yaml\"")
+
 	_, _ = fmt.Fprint(w, config)
 	return
 }
@@ -172,9 +177,7 @@ func addSubscribe(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Fprint(w, err)
 		return
 	}
-	hash := md5.New()
-	hash.Write([]byte(model.SubscribeInput))
-	name := hex.EncodeToString(hash.Sum(nil))
+	name, _ := getVmessName(model.SubscribeInput)
 	if _, ok := cache.Load(name); ok {
 		_, _ = fmt.Fprint(w, getDomain(r)+"/config?name="+name)
 		return
@@ -210,9 +213,12 @@ func AddVmess(name, converter, urlStr string, interval int, oldConfig *clashx.Co
 	if c := clashx.GetConverter(converter); c == nil {
 		return errors.New("Converter does not exist ->" + converter)
 	}
+	_, configName := getVmessName(urlStr)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	hc := &httpCache{
 		Name:         name,
+		ConfigName:   configName,
 		VmessPathUrl: urlStr,
 		Interval:     interval,
 		Converter:    converter,
@@ -268,7 +274,13 @@ func autoUpdateConfig(ctx context.Context, c *httpCache) {
 }
 
 func get(urlStr, converter string) (*clashx.Config, error) {
-	resp, err := http.Get(urlStr)
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+	resp, err := client.Get(urlStr)
+
 	if err != nil {
 		log.Println("Failed to get remote response ->", err)
 		return nil, err
@@ -295,7 +307,7 @@ func get(urlStr, converter string) (*clashx.Config, error) {
 
 func getDomain(r *http.Request) string {
 	port := fmt.Sprintf(":%d", getPort(r))
-	if r.URL.Port() == ":80" || r.URL.Port() == ":443" || r.URL.Port() == ":" {
+	if port == ":80" || port == ":443" || port == ":" {
 		port = ""
 	}
 	scheme := getScheme(r)
@@ -348,7 +360,6 @@ func initialize(ctx context.Context, path string) {
 					}
 					return true
 				})
-				log.Println(caches)
 				if len(caches) > 0 {
 					if f, err := os.Create(path); err == nil {
 						encoder := gob.NewEncoder(f)
@@ -372,12 +383,34 @@ func initialize(ctx context.Context, path string) {
 		}
 		for _, c := range caches {
 			ctx1, cancel := context.WithCancel(ctx)
-			c.cancel = cancel
-			cache.Store(c.Name, c)
+			tmp := *c
+			tmp.cancel = cancel
+			cache.Store(c.Name, &tmp)
 			log.Printf("恢复备份成功 ->%s - %s\n", c.Name, path)
 			go autoUpdateConfig(ctx1, c)
 		}
 	}
+}
+
+func getVmessName(urlStr string) (name string, configName string) {
+	uri, err := url.Parse(urlStr)
+	if err == nil {
+		if uri.Path != "" {
+			name := strings.TrimSuffix(filepath.Base(uri.Path), filepath.Ext(uri.Path))
+			names := []rune(name)
+
+			names[0] = unicode.ToUpper(names[0])
+
+			configName = string(names)
+		}
+	}
+	hash := md5.New()
+	hash.Write([]byte(urlStr))
+	name = hex.EncodeToString(hash.Sum(nil))
+	if configName == "" {
+		configName = name
+	}
+	return
 }
 
 func init() {

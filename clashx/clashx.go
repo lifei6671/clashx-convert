@@ -47,6 +47,26 @@ type Config struct {
 	Rule       []string      `yaml:"Rule"`
 }
 
+func (m *Config) AddProxy(p *Proxy) {
+	for index, proxy := range m.Proxy {
+		if proxy.Name == p.Name {
+			m.Proxy[index] = p
+			return
+		}
+	}
+	m.Proxy = append(m.Proxy, p)
+	for _, group := range m.ProxyGroup {
+		if group.Type == "select" {
+			for _, name := range group.Proxies {
+				if name == p.Name {
+					return
+				}
+			}
+			group.Proxies = append(group.Proxies, p.Name)
+		}
+	}
+}
+
 func (m *Config) String() string {
 	if m == nil {
 		return ""
@@ -168,7 +188,7 @@ func (m *VmessClashX) Convert(body string) (*Config, error) {
 	return m.c, nil
 }
 
-func SingleVmessConvert(body string) (*Proxy, error) {
+func SingleVmessConvert(body string) (*Config, error) {
 	bbb, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(body, string(VmessPrefix)))
 	if err != nil {
 		return nil, err
@@ -197,7 +217,24 @@ func SingleVmessConvert(body string) (*Proxy, error) {
 		proxy.WSPath = data.Path
 		proxy.WSHeaders = map[string]string{"Host": data.Host}
 	}
-	return proxy, nil
+
+	c := &Config{}
+	if err := yaml.NewDecoder(strings.NewReader(ConfigStr)).Decode(c); err != nil {
+		return nil, err
+	}
+	if len(c.ProxyGroup) == 0 {
+		c.ProxyGroup = make([]*ProxyGroup, 1)
+		c.ProxyGroup[0] = &ProxyGroup{
+			Name:     "Proxy",
+			Type:     "select",
+			Proxies:  make([]string, 0),
+			Url:      "",
+			Interval: 0,
+		}
+	}
+	c.AddProxy(proxy)
+
+	return c, nil
 }
 
 func Register(name string, c Converter) {

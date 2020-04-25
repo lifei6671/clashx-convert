@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 )
 
+//go:generate go run scripts/includetxt.go
+//go:generate gofmt -w server/template.static.go
 func main() {
 	app := cli.NewApp()
 	app.Name = "clashx-convert"
