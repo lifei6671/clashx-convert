@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>ClashX 托管接口</title>
     <link rel="stylesheet" href="https://unpkg.com/element-ui@2.13.1/lib/theme-chalk/index.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@10.0.0/build/styles/default.min.css">
+    <link rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@10.0.0/build/styles/default.min.css">
     <style type="text/css">
         .clearfix:after, .clearfix:before {
             display: table;
@@ -67,9 +68,13 @@
 
                         <div class="buttons el-row is-align-middle el-row--flex">
                             <div class="el-col el-col-24">
-                                <el-button type="primary" size="medium">一键导入托管</el-button>
-                                <el-button size="medium">复制托管链接</el-button>
-                                <el-button size="medium">下载配置文件</el-button>
+                                <el-button type="primary" size="medium" @click="addSubscribe"
+                                           :loading="button.add_subscribe_loading">一键导入托管
+                                </el-button>
+                                <el-button size="medium" @click="copySubscribe" :data-clipboard-text="subscribe_link"
+                                           id="copySubscribe">复制托管链接
+                                </el-button>
+                                <el-button size="medium" @click="downloadSubscribe">下载配置文件</el-button>
                             </div>
                         </div>
                     </div>
@@ -101,7 +106,7 @@
                     <span>转换结果</span>
                 </div>
                 <div class="text item">
-                    <pre  v-highlightjs="convert_result"><code class="yaml"></code></pre>
+                    <pre v-highlightjs="convert_result"><code class="yaml"></code></pre>
                 </div>
             </el-card>
         </div>
@@ -111,16 +116,17 @@
 <script src="https://unpkg.com/element-ui@2.13.1/lib/index.js"></script>
 <script src="https://unpkg.com/axios@0.19.2/dist/axios.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@10.0.0/build/highlight.min.js"></script>
-<script>Vue.config.productionTip=false</script>
+<script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.6/dist/clipboard.min.js"></script>
+<script>Vue.config.productionTip = false</script>
 <script type="text/javascript">
     axios.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded';
     Vue.directive('highlightjs', {
         deep: true,
         bind: function bind(el, binding) {
             // on first bind, highlight all targets
-            var targets = el.querySelectorAll('code');
-            var target;
-            var i;
+            const targets = el.querySelectorAll('code');
+            let target;
+            let i;
 
             for (i = 0; i < targets.length; i += 1) {
                 target = targets[i];
@@ -136,9 +142,9 @@
         },
         componentUpdated: function componentUpdated(el, binding) {
             // after an update, re-fill the content and then highlight
-            var targets = el.querySelectorAll('code');
-            var target;
-            var i;
+            const targets = el.querySelectorAll('code');
+            let target;
+            let i;
 
             for (i = 0; i < targets.length; i += 1) {
                 target = targets[i];
@@ -159,38 +165,114 @@
                 socks_port: 7891,
                 allow_lan: false,
                 single_input: "",
-                subscribe_input:"",
-                convert_result:"",
+                subscribe_input: "",
+                convert_result: "",
+                subscribe_link: "",
+                button: {
+                    add_subscribe_loading: false,
+                }
             }
+        },
+        mounted: function () {
+            this.copySubscribeBtn = new ClipboardJS("#copySubscribe");
         },
         methods: {
             singleProxySubmit: function () {
-                if(this.single_input === "") {
+                if (this.single_input === "") {
                     this.$message.error('请输入Vmess单链接的地址');
+                    return false;
                 }
                 let then = this;
-
+                then.button.add_subscribe_loading = true;
                 axios({
-                    method:"post",
-                    url:"/single-proxy",
+                    method: "post",
+                    url: "/single-proxy",
                     data: "single_proxy=" + this.single_input
                 }).then(function (t) {
-                    if(t.status === 200) {
+                    if (t.status === 200) {
                         then.convert_result = t.data;
                     } else {
                         then.$message.error(t.data);
                     }
+                    then.button.add_subscribe_loading = false;
                 }).catch(function (error) {
                     if (error.response) {
                         then.$message.error(error.response.data);
-                    }else if (error.request) {
+                    } else if (error.request) {
                         then.$message.error(error.request);
                     } else {
                         // 其他错误
                         console.log('Error', error.message);
                     }
+                    then.button.add_subscribe_loading = false;
                     console.log(error);
                 });
+            },
+            addSubscribe: function () {
+                if (this.subscribe_input === "") {
+                    this.$message.error("请输入托管的Vmess链接");
+                    return false;
+                }
+                let then = this;
+                then.button.add_subscribe_loading = true;
+                axios({
+                    method: "post",
+                    url: "/add-subscribe",
+                    data: {
+                        "port": this.port,
+                        "socks_port": this.socks_port,
+                        "allow_lan": this.allow_lan,
+                        "subscribe_input": this.subscribe_input
+                    },
+                }).then(function (response) {
+                    if (response.status === 200) {
+                        then.subscribe_link = response.data;
+                        then.$message.success("托管成功.");
+                    } else {
+                        then.$message.error(response.data);
+                    }
+                    then.button.add_subscribe_loading = false;
+                }).catch(function (error) {
+                    if (error.response) {
+                        then.$message.error(error.response.data);
+                    } else if (error.request) {
+                        then.$message.error(error.request);
+                    } else {
+                        // 其他错误
+                        console.log('Error', error.message);
+                    }
+                    then.button.add_subscribe_loading = false;
+                    console.log(error);
+                });
+            },
+            copySubscribe: function () {
+                if (this.subscribe_link === "") {
+                    this.$message.success("请托管后再复制.");
+                    return false;
+                }
+                let _this = this;
+                let clipboard = new ClipboardJS("#copySubscribe");
+                clipboard.on('success', function (e) {
+                    _this.$message.success("复制成功");
+                    clipboard.destroy();
+                });
+                clipboard.on('error', function () {
+                    _this.$alert('', '复制链接', {
+                        confirmButtonText: '确定',
+                        dangerouslyUseHTMLString: true,
+                        showInput:true,
+                        inputValue:_this.subscribe_link,
+                        closeOnPressEscape: true,
+                    });
+                    clipboard.destroy();
+                });
+            },
+            downloadSubscribe: function () {
+                if (this.subscribe_link === "") {
+                    this.$message.success("请托管后再下载.");
+                    return false;
+                }
+                window.location = this.subscribe_link;
             }
         }
     })

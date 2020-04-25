@@ -174,7 +174,6 @@ func SingleVmessConvert(body string) (*Proxy, error) {
 		return nil, err
 	}
 	data := V2rayConfig{}
-	log.Println(string(bbb))
 	if err := json.Unmarshal(bbb, &data); err != nil {
 		log.Println(err)
 		return nil, err
@@ -182,6 +181,7 @@ func SingleVmessConvert(body string) (*Proxy, error) {
 	proxy := &Proxy{}
 	proxy.Name = data.Ps
 	proxy.Server = data.Add
+	proxy.Type = "vmess"
 	if port, err := data.Port.Int64(); err == nil {
 		proxy.Port = int(port)
 	}
