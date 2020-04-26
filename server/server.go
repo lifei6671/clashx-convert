@@ -92,7 +92,7 @@ func config(w http.ResponseWriter, r *http.Request) {
 				}
 				c.config = config
 			}
-			w.Header().Add("Content-Type", "application/octet-stream")
+			w.Header().Add("Content-Type", "application/yaml")
 			w.Header().Add("Content-Disposition", "attachment; filename=\""+c.ConfigName+".yaml\"")
 			_, _ = fmt.Fprint(w, c.config.String())
 			return
@@ -115,7 +115,7 @@ func config(w http.ResponseWriter, r *http.Request) {
 		}
 		name, _ := getVmessName(urlStr)
 
-		w.Header().Add("Content-Type", "application/octet-stream")
+		w.Header().Add("Content-Type", "application/yaml")
 		w.Header().Add("Content-Disposition", "attachment; filename=\""+name+".yaml\"")
 
 		_, _ = fmt.Fprint(w, config.String())
@@ -157,6 +157,7 @@ func addSubscribe(w http.ResponseWriter, r *http.Request) {
 		SocksPort      json.Number `json:"socks_port"`
 		AllowLan       bool        `json:"allow_lan"`
 		SubscribeInput string      `json:"subscribe_input"`
+		Interval       json.Number `json:"interval"`
 	}
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -176,6 +177,10 @@ func addSubscribe(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		_, _ = fmt.Fprint(w, err)
 		return
+	}
+	interval := 2
+	if v, err := model.Interval.Int64(); err == nil && v > 0 {
+		interval = int(v)
 	}
 	name, _ := getVmessName(model.SubscribeInput)
 	if _, ok := cache.Load(name); ok {
@@ -198,11 +203,12 @@ func addSubscribe(w http.ResponseWriter, r *http.Request) {
 		if port, err := model.SocksPort.Int64(); err == nil && port != 0 {
 			config.SocksPort = int(port)
 		}
-		if err := AddVmess(name, converter, model.SubscribeInput, 60, config); err != nil {
+		if err := AddVmess(name, converter, model.SubscribeInput, interval, config); err != nil {
 			w.WriteHeader(500)
 			_, _ = fmt.Fprint(w, err)
 			return
 		}
+		log.Println("配置托管成功 ->", string(body))
 		_, _ = fmt.Fprint(w, getDomain(r)+"/config?name="+name)
 		return
 	}
@@ -226,12 +232,25 @@ func AddVmess(name, converter, urlStr string, interval int, oldConfig *clashx.Co
 		config:       oldConfig,
 	}
 
+	config, err := get(hc.VmessPathUrl, hc.Converter)
+	if err != nil {
+		log.Printf("Failed to get remote configuration -> %s %s", hc.VmessPathUrl, err)
+		return err
+	}
+	log.Println("update completed ->", hc.VmessPathUrl)
+	hc.config = config
+	if oldConfig != nil {
+		hc.config.AllowLan = oldConfig.AllowLan
+		hc.config.Port = oldConfig.Port
+		hc.config.SocksPort = oldConfig.SocksPort
+	}
+
 	actual, loaded := cache.LoadOrStore(name, hc)
 	if loaded {
 		actual.(*httpCache).cancel()
 		cache.Store(name, hc)
 	}
-	log.Printf("增加配置成功 ->name=%s type=%s url=%s\n", name, converter, urlStr)
+	log.Printf("增加配置成功 ->name=%s config_name=%s type=%s url=%s\n", name, configName, converter, urlStr)
 	go autoUpdateConfig(ctx, hc)
 
 	changeChan <- struct{}{}

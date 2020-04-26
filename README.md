@@ -20,7 +20,7 @@ GOOS=linux GOARCH=amd64 go build -o clashx-linux-amd64
 
 //windows上编译为openwrt版本
 set GOOS=linux
-set GOOS=mipsle
+set GOARCH=mipsle
 set GOMIPS=softfloat
 go build -o clashx-linux-mips64le
 ```

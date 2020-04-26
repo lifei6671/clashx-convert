@@ -147,6 +147,8 @@ func (m *VmessClashX) Convert(body string) (*Config, error) {
 		return nil, err
 	}
 
+	config := *m.c
+
 	for _, bb := range bytes.Split(b, []byte("\n")) {
 		proxy := &Proxy{}
 		if bytes.HasPrefix(bb, VmessPrefix) {
@@ -178,14 +180,23 @@ func (m *VmessClashX) Convert(body string) (*Config, error) {
 				proxy.WSHeaders = map[string]string{"Host": data.Host}
 			}
 
-			m.c.Proxy = append(m.c.Proxy, proxy)
-			for _, g := range m.c.ProxyGroup {
-				g.Proxies = append(g.Proxies, proxy.Name)
+			config.Proxy = append(config.Proxy, proxy)
+			for _, g := range config.ProxyGroup {
+				isOk := true
+				for _, p := range g.Proxies {
+					if p == proxy.Name {
+						isOk = false
+						break
+					}
+				}
+				if isOk {
+					g.Proxies = append(g.Proxies, proxy.Name)
+				}
 			}
 		}
 	}
 
-	return m.c, nil
+	return &config, nil
 }
 
 func SingleVmessConvert(body string) (*Config, error) {
